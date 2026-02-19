@@ -5,21 +5,33 @@ import cookieParser from "cookie-parser";
 const app = express();
 
 // ✅ CORS
-const allowedOrigins = (process.env.CORS_ORIGIN || "")
+const normalizeOrigin = (value = "") => value.trim().replace(/\/+$/, "");
+
+const envOrigins = (process.env.CORS_ORIGIN || "")
   .split(",")
-  .map((origin) => origin.trim())
+  .map(normalizeOrigin)
   .filter(Boolean);
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      return callback(new Error("Not allowed by CORS"), false);
-    },
-    credentials: true
-  })
-);
+const defaultOrigins = [
+  "http://localhost:5173",
+  "https://careme-fronted.vercel.app",
+  "https://careme-frontend.vercel.app"
+];
+
+const allowedOrigins = [...new Set([...defaultOrigins, ...envOrigins])];
+const allowAllOrigins = (process.env.CORS_ALLOW_ALL || "true").toLowerCase() === "true";
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (allowAllOrigins) return callback(null, true);
+    return callback(null, allowedOrigins.includes(normalizeOrigin(origin)));
+  },
+  credentials: true
+};
+
+app.use(cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
 
 // ✅ Body parsers
 app.use(express.json());
