@@ -2,8 +2,7 @@ import { Patient } from "../models/patient.model.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
-import fs from "fs/promises";
+import { uploadOnCloudinary, uploadBufferOnCloudinary } from "../utils/cloudinary.js";
 
 const cookieOptions = {
   httpOnly: true,
@@ -107,10 +106,14 @@ const cookieOptions = {
   let finalAvatar = typeof avatar === "string" ? avatar.trim() : undefined;
   if (typeof avatarUrl === "string") finalAvatar = avatarUrl.trim() || finalAvatar;
 
-  if (req.file?.path) {
-    const uploadedAvatar = await uploadOnCloudinary(req.file.path);
+  if (req.file) {
+    let uploadedAvatar = null;
+    if (req.file.buffer) {
+      uploadedAvatar = await uploadBufferOnCloudinary(req.file.buffer);
+    } else if (req.file.path) {
+      uploadedAvatar = await uploadOnCloudinary(req.file.path);
+    }
     finalAvatar = uploadedAvatar?.secure_url || uploadedAvatar?.url || finalAvatar;
-    await fs.unlink(req.file.path).catch(() => {});
   }
 
   // If username provided, ensure it's not taken by another patient

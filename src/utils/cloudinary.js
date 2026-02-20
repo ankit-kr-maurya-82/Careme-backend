@@ -14,3 +14,17 @@ export const uploadOnCloudinary = async (filePath) => {
   });
   return result;
 };
+
+export const uploadBufferOnCloudinary = async (buffer) => {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: "avatars", resource_type: "image" },
+      (error, result) => {
+        if (error) return reject(error);
+        return resolve(result);
+      }
+    );
+
+    stream.end(buffer);
+  });
+};
