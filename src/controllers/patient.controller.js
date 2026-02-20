@@ -2,6 +2,8 @@ import { Patient } from "../models/patient.model.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import fs from "fs/promises";
 
 const cookieOptions = {
   httpOnly: true,
@@ -11,7 +13,7 @@ const cookieOptions = {
 
 // Register new patient
  const registerPatient = asyncHandler(async (req, res) => {
-  const { fullName, email, password, age, gender } = req.body;
+  const { fullName, email, password, age, gender, avatar } = req.body;
   // Basic server-side validation to avoid Mongoose 500s
   if (!fullName || !String(fullName).trim()) throw new ApiError(400, "Full name is required");
   if (!email || !String(email).trim()) throw new ApiError(400, "Email is required");
@@ -44,7 +46,8 @@ const cookieOptions = {
     email,
     password,
     age,
-    gender
+    gender,
+    avatar
   });
   const createdPatient = await Patient
     .findById(patient._id)
@@ -100,7 +103,15 @@ const cookieOptions = {
 // UPDATE patient profile
  const updatePatientProfile = asyncHandler(async (req, res) => {
   const patientId = req.user._id; // JWT user id
-  const { username, fullName, age, gender, avatar } = req.body;
+  const { username, fullName, age, gender, avatar, avatarUrl } = req.body;
+  let finalAvatar = typeof avatar === "string" ? avatar.trim() : undefined;
+  if (typeof avatarUrl === "string") finalAvatar = avatarUrl.trim() || finalAvatar;
+
+  if (req.file?.path) {
+    const uploadedAvatar = await uploadOnCloudinary(req.file.path);
+    finalAvatar = uploadedAvatar?.secure_url || uploadedAvatar?.url || finalAvatar;
+    await fs.unlink(req.file.path).catch(() => {});
+  }
 
   // If username provided, ensure it's not taken by another patient
   if (username) {
@@ -110,9 +121,16 @@ const cookieOptions = {
     }
   }
 
+  const updateFields = {};
+  if (typeof username === "string") updateFields.username = username;
+  if (typeof fullName === "string") updateFields.fullName = fullName;
+  if (typeof age !== "undefined") updateFields.age = age;
+  if (typeof gender === "string") updateFields.gender = gender;
+  if (typeof finalAvatar === "string") updateFields.avatar = finalAvatar;
+
   const updatedPatient = await Patient.findByIdAndUpdate(
     patientId,
-    { $set: { username, fullName, age, gender, avatar } },
+    { $set: updateFields },
     { new: true }
   ).select("-password -refreshToken");
 

@@ -2,6 +2,8 @@ import { Doctor } from "../models/doctor.model.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import fs from "fs/promises";
 
 const cookieOptions = {
   httpOnly: true,
@@ -126,11 +128,25 @@ const loginDoctor = asyncHandler(async (req, res) => {
 // UPDATE doctor profile
  const updateDoctorProfile = asyncHandler(async (req, res) => {
   const doctorId = req.user._id; // JWT user id
-  const { fullName, specialty, phone, avatar } = req.body;
+  const { fullName, specialty, phone, avatar, avatarUrl } = req.body;
+  let finalAvatar = typeof avatar === "string" ? avatar.trim() : undefined;
+  if (typeof avatarUrl === "string") finalAvatar = avatarUrl.trim() || finalAvatar;
+
+  if (req.file?.path) {
+    const uploadedAvatar = await uploadOnCloudinary(req.file.path);
+    finalAvatar = uploadedAvatar?.secure_url || uploadedAvatar?.url || finalAvatar;
+    await fs.unlink(req.file.path).catch(() => {});
+  }
+
+  const updateFields = {};
+  if (typeof fullName === "string") updateFields.fullName = fullName;
+  if (typeof specialty === "string") updateFields.specialty = specialty;
+  if (typeof phone === "string") updateFields.phone = phone;
+  if (typeof finalAvatar === "string") updateFields.avatar = finalAvatar;
 
   const updatedDoctor = await Doctor.findByIdAndUpdate(
     doctorId,
-    { $set: { fullName, specialty, phone, avatar } },
+    { $set: updateFields },
     { new: true }
   ).select("-password -refreshToken");
 
